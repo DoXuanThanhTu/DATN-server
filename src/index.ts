@@ -47,7 +47,12 @@ app.use(cors());
 app.use(express.json());
 
 connectDB();
-
+app.use("/", (req, res) => {
+  res.send("Server is running");
+});
+app.use("/checkhealth", (req, res) => {
+  res.send("Server is healthy");
+});
 app.use("/api/users", userRoute);
 app.use("/api", uploadRoute);
 app.use("/api/photos", imagekitRoute);
