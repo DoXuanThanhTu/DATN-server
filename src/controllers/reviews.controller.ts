@@ -15,7 +15,6 @@ export const createReview = async (req: AuthRequest, res: Response) => {
 
   res.status(201).json({ data: newReview });
 };
-
 export const getMySentReviews = async (req: AuthRequest, res: Response) => {
   const reviews = await Review.find({ reviewer: req.user!._id })
     .populate("receiver", "name avatar")

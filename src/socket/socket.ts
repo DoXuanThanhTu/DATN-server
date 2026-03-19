@@ -1,12 +1,17 @@
 import { Server } from "socket.io";
 import http from "http";
+import dotenv from "dotenv";
+
+dotenv.config();
 
 export const userSocketMap = new Map<string, string>();
 export let io: Server;
-
 export const setupSocket = (server: http.Server) => {
   io = new Server(server, {
-    cors: { origin: "*", methods: ["GET", "POST"] },
+    cors: {
+      origin: ["http://localhost:3000", process.env.CLIENT_URL || ""],
+      credentials: true,
+    },
   });
 
   io.on("connection", (socket) => {

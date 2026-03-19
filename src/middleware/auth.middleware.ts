@@ -36,7 +36,6 @@ export const protect = async (
     }
 
     req.user = currentUser;
-    console.log("currentUser", currentUser);
     next();
   } catch (error) {
     return res.status(401).json({ message: "Token không hợp lệ hoặc hết hạn" });
