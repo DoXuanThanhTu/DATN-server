@@ -3,6 +3,9 @@ import cors from "cors";
 import dotenv from "dotenv";
 import http from "http";
 import connectDB from "./configs/db";
+import { setupSocket } from "./socket/socket";
+
+// Route imports
 import userRoute from "./routes/user.route";
 import uploadRoute from "./routes/upload.route";
 import imagekitRoute from "./routes/imagekit.route";
@@ -15,10 +18,16 @@ import categoryRoute from "./routes/category.route";
 import authRoute from "./routes/auth.routes";
 import chatRoute from "./routes/chat.route";
 import messageRoute from "./routes/message.routes";
+
 dotenv.config();
-const allowedOrigins = ["https://datn-client-alpha.vercel.app/"];
 
 const app = express();
+
+const allowedOrigins = [
+  "https://datn-client-alpha.vercel.app",
+  "http://localhost:3000",
+];
+
 const corsOptions: cors.CorsOptions = {
   origin: (origin, callback) => {
     if (!origin || allowedOrigins.includes(origin)) {
@@ -29,13 +38,15 @@ const corsOptions: cors.CorsOptions = {
       );
     }
   },
-  methods: ["GET", "POST", "PUT", "DELETE", "PATCH"],
+  methods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
   credentials: true,
 };
 
 app.use(cors(corsOptions));
+app.use(express.json());
+
 const server = http.createServer(app);
-import { setupSocket } from "./socket/socket";
+
 const io = setupSocket(server);
 
 export const userSocketMap = new Map<string, string>();
@@ -50,22 +61,20 @@ io.on("connection", (socket) => {
     io.emit("getOnlineUsers", Array.from(userSocketMap.keys()));
   }
 
-  console.log(` User connected: ${userId} (Socket ID: ${socket.id})`);
+  console.log(`User connected: ${userId}`);
 
   socket.on("disconnect", () => {
     if (userId) userSocketMap.delete(userId);
     io.emit("getOnlineUsers", Array.from(userSocketMap.keys()));
-    console.log(` User disconnected: ${userId}`);
   });
 });
 
-app.use(cors());
-app.use(express.json());
-
 connectDB();
-app.use("/checkhealth", (req, res) => {
-  res.send("Server is healthy");
+
+app.get("/health", (req, res) => {
+  res.status(200).send("Server is healthy");
 });
+
 app.use("/api/users", userRoute);
 app.use("/api", uploadRoute);
 app.use("/api/photos", imagekitRoute);
@@ -78,7 +87,8 @@ app.use("/api/history", historyRoute);
 app.use("/api/categories", categoryRoute);
 app.use("/api/chat", chatRoute);
 app.use("/api/messages", messageRoute);
+
 const PORT = process.env.PORT || 5000;
 server.listen(PORT, () => {
-  console.log(`Server running on http://localhost:${PORT}`);
+  console.log(`Server running on port ${PORT}`);
 });
