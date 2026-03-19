@@ -1,0 +1,59 @@
+[
+  {
+    "Type": "province",
+    "Code": "01",
+    "Name": "Hà Nội",
+    "NameEn": "Ha Noi",
+    "FullName": "Thành phố Hà Nội",
+    "FullNameEn": "Ha Noi City",
+    "CodeName": "ha_noi",
+    "AdministrativeUnitId": 1,
+    "Wards": [
+      {
+        "Type": "ward",
+        "Code": "00004",
+        "Name": "Ba Đình",
+        "NameEn": "Ba Dinh",
+        "FullName": "Phường Ba Đình",
+        "FullNameEn": "Ba Dinh Ward",
+        "CodeName": "ba_dinh",
+        "ProvinceCode": "01",
+        "AdministrativeUnitId": 3
+      },
+      {
+        "Type": "ward",
+        "Code": "00008",
+        "Name": "Ngọc Hà",
+        "NameEn": "Ngoc Ha",
+        "FullName": "Phường Ngọc Hà",
+        "FullNameEn": "Ngoc Ha Ward",
+        "CodeName": "ngoc_ha",
+        "ProvinceCode": "01",
+        "AdministrativeUnitId": 3
+      },
+
+      {
+        "Type": "ward",
+        "Code": "00565",
+        "Name": "Gia Lâm",
+        "NameEn": "Gia Lam",
+        "FullName": "Xã Gia Lâm",
+        "FullNameEn": "Gia Lam Commune",
+        "CodeName": "gia_lam",
+        "ProvinceCode": "01",
+        "AdministrativeUnitId": 4
+      },
+      {
+        "Type": "ward",
+        "Code": "00577",
+        "Name": "Bát Tràng",
+        "NameEn": "Bat Trang",
+        "FullName": "Xã Bát Tràng",
+        "FullNameEn": "Bat Trang Commune",
+        "CodeName": "bat_trang",
+        "ProvinceCode": "01",
+        "AdministrativeUnitId": 4
+      }
+    ]
+  }
+]
