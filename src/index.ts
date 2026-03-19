@@ -2,7 +2,6 @@ import express from "express";
 import cors from "cors";
 import dotenv from "dotenv";
 import http from "http";
-import { Server } from "socket.io";
 import connectDB from "./configs/db";
 import userRoute from "./routes/user.route";
 import uploadRoute from "./routes/upload.route";
@@ -17,7 +16,24 @@ import authRoute from "./routes/auth.routes";
 import chatRoute from "./routes/chat.route";
 import messageRoute from "./routes/message.routes";
 dotenv.config();
+const allowedOrigins = ["https://datn-client-alpha.vercel.app/"];
+
 const app = express();
+const corsOptions: cors.CorsOptions = {
+  origin: (origin, callback) => {
+    if (!origin || allowedOrigins.includes(origin)) {
+      callback(null, true);
+    } else {
+      callback(
+        new Error("CORS policy: This origin is not allowed by Access Control"),
+      );
+    }
+  },
+  methods: ["GET", "POST", "PUT", "DELETE", "PATCH"],
+  credentials: true,
+};
+
+app.use(cors(corsOptions));
 const server = http.createServer(app);
 import { setupSocket } from "./socket/socket";
 const io = setupSocket(server);
@@ -47,9 +63,6 @@ app.use(cors());
 app.use(express.json());
 
 connectDB();
-app.use("/", (req, res) => {
-  res.send("Server is running");
-});
 app.use("/checkhealth", (req, res) => {
   res.send("Server is healthy");
 });
