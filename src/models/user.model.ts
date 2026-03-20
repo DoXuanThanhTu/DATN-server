@@ -10,6 +10,7 @@ export interface IUser extends Document {
   totalReviews: number;
   isActive: boolean;
   lastActive: Date;
+  id?: string;
 }
 
 const userSchema = new Schema<IUser>(

@@ -3,6 +3,7 @@ import jwt from "jsonwebtoken";
 import User, { IUser } from "../models/user.model";
 export interface AuthRequest extends Request {
   user?: IUser;
+  // data?: any;
 }
 interface JwtPayload {
   id: string;
@@ -22,6 +23,39 @@ export const protect = async (
 
   if (!token) {
     return res.status(401).json({ message: "Bạn chưa đăng nhập!" });
+  }
+
+  try {
+    const decoded = jwt.verify(
+      token,
+      process.env.JWT_SECRET as string,
+    ) as JwtPayload;
+
+    const currentUser = await User.findById(decoded.id).select("-password");
+    if (!currentUser) {
+      return res.status(401).json({ message: "Người dùng không còn tồn tại" });
+    }
+
+    req.user = currentUser;
+    next();
+  } catch (error) {
+    return res.status(401).json({ message: "Token không hợp lệ hoặc hết hạn" });
+  }
+};
+export const checkAuth = async (
+  req: AuthRequest,
+  res: Response,
+  next: NextFunction,
+) => {
+  let token: string | undefined;
+
+  if (req.headers.authorization?.startsWith("Bearer")) {
+    token = req.headers.authorization.split(" ")[1];
+  }
+
+  if (!token) {
+    next();
+    return;
   }
 
   try {

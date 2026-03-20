@@ -19,8 +19,13 @@ export interface IPost extends Document {
     lat?: number;
     lng?: number;
   };
-  condition: "new" | "used";
-  status: "active" | "sold" | "hidden";
+  condition: {
+    label: "new" | "like_new" | "good" | "fair" | "for_parts";
+    percentage: number;
+    isFullbox: boolean;
+    warranty: string;
+  };
+  status: "pending" | "active" | "sold" | "hidden" | "rejected";
   views: number;
 }
 
@@ -51,11 +56,33 @@ const productSchema = new Schema<IPost>(
       lng: Number,
     },
 
-    condition: { type: String, enum: ["new", "used"], default: "used" },
+    condition: {
+      label: {
+        type: String,
+        enum: ["new", "like_new", "good", "fair", "for_parts"],
+        required: true,
+        default: "good",
+      },
+      percentage: {
+        type: Number,
+        min: 0,
+        max: 100,
+        default: 100,
+      },
+      isFullbox: {
+        type: Boolean,
+        default: false,
+      },
+      warranty: {
+        type: String,
+        trim: true,
+        default: "Không bảo hành",
+      },
+    },
     status: {
       type: String,
-      enum: ["active", "sold", "hidden"],
-      default: "active",
+      enum: ["pending", "active", "sold", "hidden", "rejected"],
+      default: "pending",
       index: true,
     },
     views: { type: Number, default: 0 },
