@@ -6,6 +6,8 @@ import {
   getMyConversations,
   getConversationById,
   sendMessage,
+  updateOfferStatus,
+  markAsRead,
 } from "../controllers/chat.controller";
 import { protect } from "../middleware/auth.middleware";
 
@@ -16,5 +18,6 @@ router.get("/conversations", protect, getMyConversations);
 router.get("/messages/:conversationId", protect, getMessages);
 router.get("/conversations/:conversationId", protect, getConversationById);
 router.post("/messages", protect, sendMessage);
-
+router.put("/messages/:id/status", protect, updateOfferStatus);
+router.patch("/conversations/:conversationId/read", protect, markAsRead);
 export default router;

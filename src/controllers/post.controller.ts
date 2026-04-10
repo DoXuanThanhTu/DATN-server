@@ -3,6 +3,7 @@ import slugify from "slugify";
 import Post from "../models/post.model";
 import { AuthRequest } from "src/middleware/auth.middleware";
 import mongoose from "mongoose";
+import Category from "../models/category.model";
 
 export const getProducts = async (req: any, res: Response) => {
   try {
@@ -63,11 +64,25 @@ export const getProducts = async (req: any, res: Response) => {
       matchStage.status = "active";
     }
 
-    const finalCategory = categoryId || parentCategoryId;
-    if (finalCategory) {
-      matchStage.category = new mongoose.Types.ObjectId(
-        finalCategory as string,
-      );
+    if (categoryId) {
+      // Nếu có categoryId cụ thể, chỉ lấy theo ID đó (Ưu tiên số 1)
+      matchStage.category = new mongoose.Types.ObjectId(categoryId as string);
+    } else if (parentCategoryId) {
+      // Nếu chỉ có parentCategoryId, tìm tất cả category con thuộc cha này
+      const subCategories = await Category.find({
+        parentId: new mongoose.Types.ObjectId(parentCategoryId as string),
+        isActive: true,
+      }).select("_id");
+
+      const subCategoryIds = subCategories.map((cat) => cat._id);
+
+      // Bao gồm cả chính ID của parentCategory và các con của nó
+      matchStage.category = {
+        $in: [
+          new mongoose.Types.ObjectId(parentCategoryId as string),
+          ...subCategoryIds,
+        ],
+      };
     }
 
     if (provinceCode) matchStage["location.provinceCode"] = provinceCode;
@@ -181,7 +196,7 @@ export const getProductDetail = async (req: Request, res: Response) => {
 
     const product = await Post.findOne(query)
       .populate("seller", "name email avatar phone lastActive")
-      .populate("category", "name slug _id")
+      .populate("category", "name slug _id parentId")
       .lean();
 
     if (!product) {
@@ -399,7 +414,12 @@ export const updateProduct = async (req: AuthRequest, res: Response) => {
         priceNegotiable: !!priceNegotiable,
         images,
         category: new mongoose.Types.ObjectId(finalCategory as string),
-        condition: condition?.toLowerCase().includes("mới") ? "new" : "used",
+        condition: {
+          label: condition?.label || "good",
+          percentage: Number(condition?.percentage) || 100,
+          isFullbox: !!condition?.isFullbox,
+          warranty: condition?.warranty || "Không bảo hành",
+        },
         location: {
           provinceCode,
           provinceName: province,
@@ -408,7 +428,6 @@ export const updateProduct = async (req: AuthRequest, res: Response) => {
           detail,
           fullAddress,
         },
-        // Không cập nhật seller và status trừ khi có logic riêng
       },
       { new: true, runValidators: true },
     );

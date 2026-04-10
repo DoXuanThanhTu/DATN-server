@@ -3,10 +3,12 @@ import Message from "../models/message.model";
 import Conversation from "../models/conversation.model";
 import { AuthRequest } from "../middleware/auth.middleware";
 import { io } from "../socket/socket";
+import { createNotification } from "./notification.controller";
 
 export const sendDirectMessage = async (req: AuthRequest, res: Response) => {
   try {
-    const { conversationId, content, imageUrl } = req.body;
+    const { conversationId, content, imageUrl, messageType, offerDetails } =
+      req.body;
     const senderId = req.user?._id;
 
     if (!senderId) return res.status(401).json({ message: "Unauthorized" });
@@ -16,6 +18,8 @@ export const sendDirectMessage = async (req: AuthRequest, res: Response) => {
       senderId,
       content,
       imageUrl,
+      messageType: messageType || "text",
+      offerDetails: offerDetails || null,
     });
 
     const conversation = await Conversation.findById(conversationId);
@@ -24,7 +28,10 @@ export const sendDirectMessage = async (req: AuthRequest, res: Response) => {
 
     conversation.lastMessage = {
       messageId: newMessage._id.toString(),
-      content: content || "Đã gửi một hình ảnh",
+      content:
+        messageType === "offer"
+          ? `💰 Trả giá: ${offerDetails.offeredPrice.toLocaleString()}đ`
+          : content || "Đã gửi hình ảnh",
       senderId: senderId,
       createdAt: newMessage.createdAt,
     };
@@ -43,6 +50,25 @@ export const sendDirectMessage = async (req: AuthRequest, res: Response) => {
       ...newMessage.toObject(),
       conversationUpdate: conversation.lastMessage,
     });
+
+    // Tạo thông báo realtime cho người nhận
+    const receiverId = conversation.participants
+      .find((p) => p.userId.toString() !== senderId.toString())
+      ?.userId.toString();
+
+    if (receiverId) {
+      await createNotification({
+        receiver: receiverId,
+        sender: senderId,
+        type: "CHAT",
+        title: "Tin nhắn mới",
+        content:
+          messageType === "offer"
+            ? `💰 ${req.user?._id || "Người dùng"} đã gửi một lời đề nghị cho bạn`
+            : content || "Đã gửi tin nhắn",
+        link: `/chat/${conversationId}`,
+      });
+    }
 
     return res.status(201).json(newMessage);
   } catch (error: any) {

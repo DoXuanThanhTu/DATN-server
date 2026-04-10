@@ -32,5 +32,7 @@ export interface IMessage {
   senderId: Types.ObjectId;
   content: string;
   imageUrl?: string;
+  messageType?: "text" | "offer";
+  offerDetails?: any;
   createdAt: Date;
 }

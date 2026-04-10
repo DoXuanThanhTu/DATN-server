@@ -13,6 +13,23 @@ const MessageSchema: Schema = new Schema(
     senderId: { type: Schema.Types.ObjectId, ref: "User", required: true },
     content: { type: String, trim: true },
     imageUrl: { type: String, default: null },
+    messageType: {
+      type: String,
+      enum: ["text", "offer"],
+      default: "text",
+    },
+    offerDetails: {
+      productId: { type: Schema.Types.ObjectId, ref: "Product" },
+      productName: String,
+      productImage: String,
+      originalPrice: Number,
+      offeredPrice: Number,
+      status: {
+        type: String,
+        enum: ["pending", "accepted", "rejected"],
+        default: "pending",
+      },
+    },
   },
   { timestamps: true },
 );

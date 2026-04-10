@@ -18,6 +18,8 @@ import categoryRoute from "./routes/category.route";
 import authRoute from "./routes/auth.routes";
 import chatRoute from "./routes/chat.route";
 import messageRoute from "./routes/message.routes";
+import orderRoutes from "./routes/order.routes";
+import notificationRoute from "./routes/notification.route";
 
 dotenv.config();
 
@@ -88,6 +90,9 @@ app.use("/api/history", historyRoute);
 app.use("/api/categories", categoryRoute);
 app.use("/api/chat", chatRoute);
 app.use("/api/messages", messageRoute);
+app.use("/api/orders", orderRoutes);
+app.use("/api/reviews", reviewRoute);
+app.use("/api/notifications", notificationRoute);
 
 const PORT = process.env.PORT || 5000;
 server.listen(PORT, () => {
