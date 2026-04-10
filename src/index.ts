@@ -27,6 +27,7 @@ const app = express();
 
 const allowedOrigins = [
   "https://datn-client-alpha.vercel.app",
+  "https://datn-admin-bice.vercel.app",
   "http://localhost:3001",
   "http://localhost:3000",
 ];
