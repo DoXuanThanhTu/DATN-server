@@ -73,7 +73,9 @@ io.on("connection", (socket) => {
 });
 
 connectDB();
-
+app.get("/", (req, res) => {
+  res.status(200).send("Server is running");
+});
 app.get("/health", (req, res) => {
   res.status(200).send("Server is healthy");
 });
