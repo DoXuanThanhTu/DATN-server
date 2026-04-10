@@ -58,7 +58,7 @@ export const createOrder = async (req: AuthRequest, res: Response) => {
       type: "ORDER",
       title: "Đơn hàng mới",
       content: `Bạn vừa nhận được đơn hàng mới cho sản phẩm: ${product.title}`,
-      link: `/my-orders/seller`, // Đường dẫn đến trang quản lý đơn của người bán
+      link: `/my-orders?tab=selling`, // Đường dẫn đến trang quản lý đơn của người bán
     });
     res.status(201).json({ success: true, data: newOrder });
   } catch (error: any) {
@@ -163,7 +163,7 @@ export const updateOrderStatus = async (req: AuthRequest, res: Response) => {
         type: "ORDER",
         title: "Đơn hàng đã bị hủy",
         content: `Đơn hàng cho sản phẩm ${(order.product as any).title} đã bị hủy bởi ${isBuyer ? "người mua" : "người bán"}.`,
-        link: isBuyer ? "/my-orders/seller" : "/my-orders/buyer",
+        link: isBuyer ? "/my-orders?tab=selling" : "/my-orders?tab=buying",
       });
     }
 
