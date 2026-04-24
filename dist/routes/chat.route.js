@@ -10,4 +10,6 @@ router.get("/conversations", auth_middleware_1.protect, chat_controller_1.getMyC
 router.get("/messages/:conversationId", auth_middleware_1.protect, chat_controller_1.getMessages);
 router.get("/conversations/:conversationId", auth_middleware_1.protect, chat_controller_1.getConversationById);
 router.post("/messages", auth_middleware_1.protect, chat_controller_1.sendMessage);
+router.put("/messages/:id/status", auth_middleware_1.protect, chat_controller_1.updateOfferStatus);
+router.patch("/conversations/:conversationId/read", auth_middleware_1.protect, chat_controller_1.markAsRead);
 exports.default = router;

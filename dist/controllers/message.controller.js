@@ -7,9 +7,10 @@ exports.getConversations = exports.getMessages = exports.sendDirectMessage = voi
 const message_model_1 = __importDefault(require("../models/message.model"));
 const conversation_model_1 = __importDefault(require("../models/conversation.model"));
 const socket_1 = require("../socket/socket");
+const notification_controller_1 = require("./notification.controller");
 const sendDirectMessage = async (req, res) => {
     try {
-        const { conversationId, content, imageUrl } = req.body;
+        const { conversationId, content, imageUrl, messageType, offerDetails } = req.body;
         const senderId = req.user?._id;
         if (!senderId)
             return res.status(401).json({ message: "Unauthorized" });
@@ -18,13 +19,17 @@ const sendDirectMessage = async (req, res) => {
             senderId,
             content,
             imageUrl,
+            messageType: messageType || "text",
+            offerDetails: offerDetails || null,
         });
         const conversation = await conversation_model_1.default.findById(conversationId);
         if (!conversation)
             return res.status(404).json({ message: "Hội thoại không tồn tại" });
         conversation.lastMessage = {
             messageId: newMessage._id.toString(),
-            content: content || "Đã gửi một hình ảnh",
+            content: messageType === "offer"
+                ? `💰 Trả giá: ${offerDetails.offeredPrice.toLocaleString()}đ`
+                : content || "Đã gửi hình ảnh",
             senderId: senderId,
             createdAt: newMessage.createdAt,
         };
@@ -40,6 +45,22 @@ const sendDirectMessage = async (req, res) => {
             ...newMessage.toObject(),
             conversationUpdate: conversation.lastMessage,
         });
+        // Tạo thông báo realtime cho người nhận
+        const receiverId = conversation.participants
+            .find((p) => p.userId.toString() !== senderId.toString())
+            ?.userId.toString();
+        if (receiverId) {
+            await (0, notification_controller_1.createNotification)({
+                receiver: receiverId,
+                sender: senderId,
+                type: "CHAT",
+                title: "Tin nhắn mới",
+                content: messageType === "offer"
+                    ? `💰 ${req.user?._id || "Người dùng"} đã gửi một lời đề nghị cho bạn`
+                    : content || "Đã gửi tin nhắn",
+                link: `/chat/${conversationId}`,
+            });
+        }
         return res.status(201).json(newMessage);
     }
     catch (error) {

@@ -19,6 +19,10 @@ export interface IPost extends Document {
     lat?: number;
     lng?: number;
   };
+  geo?: {
+    type: "Point";
+    coordinates: [number, number];
+  };
   condition: {
     label: "new" | "like_new" | "good" | "fair" | "for_parts";
     percentage: number;
@@ -55,7 +59,10 @@ const productSchema = new Schema<IPost>(
       lat: Number,
       lng: Number,
     },
-
+    geo: {
+      type: { type: String, default: "Point" },
+      coordinates: { type: [Number] },
+    },
     condition: {
       label: {
         type: String,
@@ -98,5 +105,5 @@ productSchema.index({
 productSchema.index({ "location.provinceCode": 1, status: 1 });
 productSchema.index({ price: 1 });
 productSchema.index({ createdAt: -1 });
-
+productSchema.index({ geo: "2dsphere" });
 export default mongoose.model<IPost>("Post", productSchema);

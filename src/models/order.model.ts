@@ -13,8 +13,8 @@ export interface IOrder extends Document {
     phone: string;
     fullAddress: string;
   };
-  paymentMethod: "cod" | "transfer";
-  paymentStatus: "pending" | "paid" | "failed";
+  paymentMethod: "cod" | "vnpay";
+  paymentStatus: "pending" | "paid" | "failed" | "unpaid";
   status: "pending" | "processing" | "shipped" | "delivered" | "cancelled";
   notes?: string;
   createdAt: Date;
@@ -39,11 +39,11 @@ const OrderSchema: Schema = new Schema(
       phone: String,
       fullAddress: String,
     },
-    paymentMethod: { type: String, enum: ["cod", "transfer"], default: "cod" },
+    paymentMethod: { type: String, enum: ["cod", "vnpay"], default: "cod" },
     paymentStatus: {
       type: String,
-      enum: ["pending", "paid", "failed"],
-      default: "pending",
+      enum: ["pending", "paid", "failed", "unpaid"],
+      default: "unpaid",
     },
     status: {
       type: String,

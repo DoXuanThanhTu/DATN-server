@@ -2,6 +2,8 @@ import {
   approvePost,
   deletePost,
   getMyPosts,
+  getNearbyProducts,
+  getRecommendedProducts,
   getRelatedProducts,
   hidePost,
   rejectPost,
@@ -16,11 +18,13 @@ import {
 import { authorize, checkAuth, protect } from "../middleware/auth.middleware";
 
 const router = express.Router();
-
+router.get("/nearby", getNearbyProducts);
 router.post("/", protect, createProduct);
 router.get("/me", protect, getMyPosts);
+
 router.get("/", checkAuth, getProducts);
 router.get("/related/:id", getRelatedProducts);
+router.get("/recommended", getRecommendedProducts);
 router.patch("/update/:id", protect, updateProduct);
 router.get("/:identity", getProductDetail);
 // router.use(authorize("admin"));

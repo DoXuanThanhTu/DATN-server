@@ -58,6 +58,10 @@ const productSchema = new mongoose_1.Schema({
         lat: Number,
         lng: Number,
     },
+    geo: {
+        type: { type: String, default: "Point" },
+        coordinates: { type: [Number] },
+    },
     condition: {
         label: {
             type: String,
@@ -97,4 +101,5 @@ productSchema.index({
 productSchema.index({ "location.provinceCode": 1, status: 1 });
 productSchema.index({ price: 1 });
 productSchema.index({ createdAt: -1 });
+productSchema.index({ geo: "2dsphere" });
 exports.default = mongoose_1.default.model("Post", productSchema);

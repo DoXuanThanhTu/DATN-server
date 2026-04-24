@@ -2,7 +2,7 @@ import { Request, Response } from "express";
 import slugify from "slugify";
 import Post from "../models/post.model";
 import { AuthRequest } from "src/middleware/auth.middleware";
-import mongoose from "mongoose";
+import mongoose, { ObjectId } from "mongoose";
 import Category from "../models/category.model";
 
 export const getProducts = async (req: any, res: Response) => {
@@ -214,7 +214,57 @@ export const getProductDetail = async (req: Request, res: Response) => {
         .limit(6) // Lấy tối đa 6 sản phẩm
         .sort({ createdAt: -1 }) // Ưu tiên tin mới nhất
         .lean();
+      if (relatedProducts.length === 0) {
+        let limit = 6;
+        let match: any = {
+          status: "active",
+          _id: { $ne: product._id },
+        };
+        // if (productId) {
+        //   match._id = { $ne: productId };
+        // }
 
+        const products = await Post.aggregate([
+          { $match: match },
+          { $sample: { size: limit * 2 } },
+
+          {
+            $addFields: {
+              score: {
+                $add: [
+                  { $multiply: ["$views", 0.3] },
+                  {
+                    $multiply: [
+                      {
+                        $divide: [
+                          { $subtract: [new Date(), "$createdAt"] },
+                          1000 * 60 * 60 * 24,
+                        ],
+                      },
+                      -1,
+                    ],
+                  },
+                ],
+              },
+            },
+          },
+
+          { $sort: { score: -1 } },
+          { $limit: limit },
+
+          {
+            $project: {
+              title: 1,
+              price: 1,
+              images: 1,
+              location: 1,
+              createdAt: 1,
+              slug: 1,
+            },
+          },
+        ]);
+        relatedProducts.push(...products);
+      }
       // 4. Trả về cả sản phẩm chính và danh sách liên quan
       res.json({
         success: true,
@@ -253,6 +303,8 @@ export const createProduct = async (req: AuthRequest, res: Response) => {
       ward,
       wardCode,
       detail,
+      lat,
+      lng,
       attributes,
     } = req.body;
 
@@ -290,8 +342,13 @@ export const createProduct = async (req: AuthRequest, res: Response) => {
         wardName: ward,
         detail,
         fullAddress,
+        lat,
+        lng,
       },
-
+      geo: {
+        type: "Point",
+        coordinates: [lng, lat],
+      },
       attributes: attributes || {},
 
       status: "pending",
@@ -325,7 +382,7 @@ export const getRelatedProducts = async (req: Request, res: Response) => {
         message: "Không tìm thấy sản phẩm gốc",
       });
     }
-
+    console.log("currentProduct", currentProduct);
     const related = await Post.find({
       category: currentProduct.category,
       _id: { $ne: currentProduct._id },
@@ -335,7 +392,26 @@ export const getRelatedProducts = async (req: Request, res: Response) => {
       .sort({ createdAt: -1 })
       .limit(limit)
       .lean();
+    console.log("related", related, related?.length);
+    if (!related || related.length === 0) {
+      let match: any = {
+        status: "active",
+      };
 
+      // if (user?.address?.provinceCode) {
+      //   match["location.provinceCode"] = user.address.provinceCode;
+      // }
+
+      const products = await Post.find(match)
+        .sort({ createdAt: -1 })
+        .limit(limit)
+        .select("title price images location createdAt slug")
+        .lean();
+      return res.json({
+        success: true,
+        data: products,
+      });
+    }
     res.json({
       success: true,
       data: related,
@@ -344,6 +420,129 @@ export const getRelatedProducts = async (req: Request, res: Response) => {
     res.status(500).json({
       success: false,
       message: "Lỗi lấy sản phẩm liên quan",
+      error: error.message,
+    });
+  }
+};
+export const getRecommendedProductsService = async (
+  user: any,
+  limit = 6,
+  productId?: ObjectId,
+) => {
+  let match: any = {
+    status: "active",
+    _id: { $ne: productId },
+  };
+  // if (productId) {
+  //   match._id = { $ne: productId };
+  // }
+
+  const products = await Post.aggregate([
+    { $match: match },
+    { $sample: { size: limit * 2 } },
+
+    {
+      $addFields: {
+        score: {
+          $add: [
+            { $multiply: ["$views", 0.3] },
+            {
+              $multiply: [
+                {
+                  $divide: [
+                    { $subtract: [new Date(), "$createdAt"] },
+                    1000 * 60 * 60 * 24,
+                  ],
+                },
+                -1,
+              ],
+            },
+          ],
+        },
+      },
+    },
+
+    { $sort: { score: -1 } },
+    { $limit: limit },
+
+    {
+      $project: {
+        title: 1,
+        price: 1,
+        images: 1,
+        location: 1,
+        createdAt: 1,
+        slug: 1,
+      },
+    },
+  ]);
+
+  return products;
+};
+export const getRecommendedProducts = async (req: Request, res: Response) => {
+  try {
+    const limit = parseInt(req.query.limit as string) || 12;
+
+    const user = (req as any).user;
+
+    let match: any = {
+      status: "active",
+    };
+
+    // if (user?.address?.provinceCode) {
+    //   match["location.provinceCode"] = user.address.provinceCode;
+    // }
+
+    const products = await Post.aggregate([
+      { $match: match },
+
+      { $sample: { size: limit * 2 } },
+
+      {
+        $addFields: {
+          score: {
+            $add: [
+              { $multiply: ["$views", 0.3] },
+              {
+                $multiply: [
+                  {
+                    $divide: [
+                      { $subtract: [new Date(), "$createdAt"] },
+                      1000 * 60 * 60 * 24,
+                    ],
+                  },
+                  -1,
+                ],
+              },
+            ],
+          },
+        },
+      },
+
+      { $sort: { score: -1 } },
+
+      { $limit: limit },
+
+      {
+        $project: {
+          title: 1,
+          price: 1,
+          images: 1,
+          location: 1,
+          createdAt: 1,
+          slug: 1,
+        },
+      },
+    ]);
+
+    res.json({
+      success: true,
+      data: products,
+    });
+  } catch (error: any) {
+    res.status(500).json({
+      success: false,
+      message: "Lỗi lấy sản phẩm đề xuất",
       error: error.message,
     });
   }
@@ -372,6 +571,8 @@ export const updateProduct = async (req: AuthRequest, res: Response) => {
       ward,
       wardCode,
       detail,
+      lat,
+      lng,
     } = req.body;
 
     // 2. Tìm sản phẩm và Kiểm tra quyền sở hữu (Check Owner)
@@ -427,6 +628,12 @@ export const updateProduct = async (req: AuthRequest, res: Response) => {
           wardName: ward,
           detail,
           fullAddress,
+          lat,
+          lng,
+        },
+        geo: {
+          type: "Point",
+          coordinates: [lng, lat],
         },
       },
       { new: true, runValidators: true },
@@ -601,5 +808,101 @@ export const deletePost = async (req: AuthRequest, res: Response) => {
     res
       .status(500)
       .json({ success: false, message: "Lỗi xóa tin", error: error.message });
+  }
+};
+export const getNearbyProducts = async (req: Request, res: Response) => {
+  try {
+    const { lat, lng, distance = 10, limit = 10, page = 1 } = req.query;
+
+    if (!lat || !lng) {
+      return res.status(400).json({
+        success: false,
+        message: "Vui lòng cung cấp tọa độ (lat, lng) để tìm kiếm quanh đây.",
+      });
+    }
+
+    const pageNum = parseInt(page as string);
+    const limitNum = parseInt(limit as string);
+    const skip = (pageNum - 1) * limitNum;
+
+    const pipeline: any[] = [
+      {
+        $geoNear: {
+          near: {
+            type: "Point",
+            coordinates: [parseFloat(lng as string), parseFloat(lat as string)],
+          },
+          distanceField: "distance",
+          maxDistance: parseFloat(distance as string) * 1000,
+          spherical: true,
+          query: { status: "active" },
+        },
+      },
+      {
+        $lookup: {
+          from: "users",
+          localField: "seller",
+          foreignField: "_id",
+          as: "sellerInfo",
+        },
+      },
+      {
+        $unwind: {
+          path: "$sellerInfo",
+          preserveNullAndEmptyArrays: true,
+        },
+      },
+      {
+        $facet: {
+          metadata: [{ $count: "total" }],
+          data: [
+            { $skip: skip },
+            { $limit: limitNum },
+            {
+              $project: {
+                title: 1,
+                slug: 1,
+                price: 1,
+                images: 1,
+                location: 1,
+                distance: 1,
+                createdAt: 1,
+                seller: {
+                  _id: "$sellerInfo._id",
+                  name: "$sellerInfo.name",
+                  avatar: "$sellerInfo.avatar",
+                },
+              },
+            },
+          ],
+        },
+      },
+    ];
+
+    const result = await Post.aggregate(pipeline);
+    const dataFacet = result[0];
+    const totalResult = dataFacet?.metadata[0]?.total || 0;
+
+    const formattedData = dataFacet?.data.map((item: any) => ({
+      ...item,
+      distanceKm: parseFloat((item.distance / 1000).toFixed(1)),
+    }));
+
+    res.status(200).json({
+      success: true,
+      data: formattedData || [],
+      pagination: {
+        totalResult,
+        totalPage: Math.ceil(totalResult / limitNum),
+        currentPage: pageNum,
+        limit: limitNum,
+      },
+    });
+  } catch (error: any) {
+    res.status(500).json({
+      success: false,
+      message: "Lỗi tìm kiếm sản phẩm quanh đây",
+      error: error.message,
+    });
   }
 };

@@ -20,7 +20,9 @@ import chatRoute from "./routes/chat.route";
 import messageRoute from "./routes/message.routes";
 import orderRoutes from "./routes/order.routes";
 import notificationRoute from "./routes/notification.route";
-
+import paymentRoute from "./routes/payment.routes";
+import walletRoute from "./routes/wallet.route";
+import ledgerRoute from "./routes/ledger.routes";
 dotenv.config();
 
 const app = express();
@@ -96,7 +98,9 @@ app.use("/api/messages", messageRoute);
 app.use("/api/orders", orderRoutes);
 app.use("/api/reviews", reviewRoute);
 app.use("/api/notifications", notificationRoute);
-
+app.use("/api/payment", paymentRoute);
+app.use("/api/wallet", walletRoute);
+app.use("/api/ledger", ledgerRoute);
 const PORT = process.env.PORT || 5000;
 server.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);

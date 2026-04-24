@@ -3,14 +3,15 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.deletePost = exports.rejectPost = exports.hidePost = exports.approvePost = exports.getMyPosts = exports.updateProduct = exports.getRelatedProducts = exports.createProduct = exports.getProductDetail = exports.getProducts = void 0;
+exports.getNearbyProducts = exports.deletePost = exports.rejectPost = exports.hidePost = exports.approvePost = exports.getMyPosts = exports.updateProduct = exports.getRecommendedProducts = exports.getRecommendedProductsService = exports.getRelatedProducts = exports.createProduct = exports.getProductDetail = exports.getProducts = void 0;
 const slugify_1 = __importDefault(require("slugify"));
 const post_model_1 = __importDefault(require("../models/post.model"));
 const mongoose_1 = __importDefault(require("mongoose"));
+const category_model_1 = __importDefault(require("../models/category.model"));
 const getProducts = async (req, res) => {
     try {
         const page = parseInt(req.query.page) || 1;
-        const limit = parseInt(req.query.limit) || 20;
+        const limit = parseInt(req.query.limit) || 8;
         const skip = (page - 1) * limit;
         const { keyword, parentCategoryId, categoryId, min, max, provinceCode, wardCode, condition, sortBy, status, } = req.query;
         const pipeline = [];
@@ -51,9 +52,24 @@ const getProducts = async (req, res) => {
         else {
             matchStage.status = "active";
         }
-        const finalCategory = categoryId || parentCategoryId;
-        if (finalCategory) {
-            matchStage.category = new mongoose_1.default.Types.ObjectId(finalCategory);
+        if (categoryId) {
+            // Nếu có categoryId cụ thể, chỉ lấy theo ID đó (Ưu tiên số 1)
+            matchStage.category = new mongoose_1.default.Types.ObjectId(categoryId);
+        }
+        else if (parentCategoryId) {
+            // Nếu chỉ có parentCategoryId, tìm tất cả category con thuộc cha này
+            const subCategories = await category_model_1.default.find({
+                parentId: new mongoose_1.default.Types.ObjectId(parentCategoryId),
+                isActive: true,
+            }).select("_id");
+            const subCategoryIds = subCategories.map((cat) => cat._id);
+            // Bao gồm cả chính ID của parentCategory và các con của nó
+            matchStage.category = {
+                $in: [
+                    new mongoose_1.default.Types.ObjectId(parentCategoryId),
+                    ...subCategoryIds,
+                ],
+            };
         }
         if (provinceCode)
             matchStage["location.provinceCode"] = provinceCode;
@@ -161,7 +177,7 @@ const getProductDetail = async (req, res) => {
         const query = isObjectId ? { _id: identity } : { slug: identity };
         const product = await post_model_1.default.findOne(query)
             .populate("seller", "name email avatar phone lastActive")
-            .populate("category", "name slug _id")
+            .populate("category", "name slug _id parentId")
             .lean();
         if (!product) {
             return res.status(404).json({ message: "Không tìm thấy sản phẩm" });
@@ -177,6 +193,53 @@ const getProductDetail = async (req, res) => {
                 .limit(6) // Lấy tối đa 6 sản phẩm
                 .sort({ createdAt: -1 }) // Ưu tiên tin mới nhất
                 .lean();
+            if (relatedProducts.length === 0) {
+                let limit = 6;
+                let match = {
+                    status: "active",
+                    _id: { $ne: product._id },
+                };
+                // if (productId) {
+                //   match._id = { $ne: productId };
+                // }
+                const products = await post_model_1.default.aggregate([
+                    { $match: match },
+                    { $sample: { size: limit * 2 } },
+                    {
+                        $addFields: {
+                            score: {
+                                $add: [
+                                    { $multiply: ["$views", 0.3] },
+                                    {
+                                        $multiply: [
+                                            {
+                                                $divide: [
+                                                    { $subtract: [new Date(), "$createdAt"] },
+                                                    1000 * 60 * 60 * 24,
+                                                ],
+                                            },
+                                            -1,
+                                        ],
+                                    },
+                                ],
+                            },
+                        },
+                    },
+                    { $sort: { score: -1 } },
+                    { $limit: limit },
+                    {
+                        $project: {
+                            title: 1,
+                            price: 1,
+                            images: 1,
+                            location: 1,
+                            createdAt: 1,
+                            slug: 1,
+                        },
+                    },
+                ]);
+                relatedProducts.push(...products);
+            }
             // 4. Trả về cả sản phẩm chính và danh sách liên quan
             res.json({
                 success: true,
@@ -202,7 +265,7 @@ const createProduct = async (req, res) => {
         if (!req.user) {
             return res.status(401).json({ message: "Xác thực người dùng thất bại" });
         }
-        const { title, description, price, priceNegotiable, images, parentCategoryId, categoryId, condition, province, provinceCode, ward, wardCode, detail, attributes, } = req.body;
+        const { title, description, price, priceNegotiable, images, parentCategoryId, categoryId, condition, province, provinceCode, ward, wardCode, detail, lat, lng, attributes, } = req.body;
         const finalCategory = categoryId || parentCategoryId;
         if (!finalCategory) {
             return res
@@ -233,6 +296,12 @@ const createProduct = async (req, res) => {
                 wardName: ward,
                 detail,
                 fullAddress,
+                lat,
+                lng,
+            },
+            geo: {
+                type: "Point",
+                coordinates: [lng, lat],
             },
             attributes: attributes || {},
             status: "pending",
@@ -264,6 +333,7 @@ const getRelatedProducts = async (req, res) => {
                 message: "Không tìm thấy sản phẩm gốc",
             });
         }
+        console.log("currentProduct", currentProduct);
         const related = await post_model_1.default.find({
             category: currentProduct.category,
             _id: { $ne: currentProduct._id },
@@ -273,6 +343,24 @@ const getRelatedProducts = async (req, res) => {
             .sort({ createdAt: -1 })
             .limit(limit)
             .lean();
+        console.log("related", related, related?.length);
+        if (!related || related.length === 0) {
+            let match = {
+                status: "active",
+            };
+            // if (user?.address?.provinceCode) {
+            //   match["location.provinceCode"] = user.address.provinceCode;
+            // }
+            const products = await post_model_1.default.find(match)
+                .sort({ createdAt: -1 })
+                .limit(limit)
+                .select("title price images location createdAt slug")
+                .lean();
+            return res.json({
+                success: true,
+                data: products,
+            });
+        }
         res.json({
             success: true,
             data: related,
@@ -287,6 +375,113 @@ const getRelatedProducts = async (req, res) => {
     }
 };
 exports.getRelatedProducts = getRelatedProducts;
+const getRecommendedProductsService = async (user, limit = 6, productId) => {
+    let match = {
+        status: "active",
+        _id: { $ne: productId },
+    };
+    // if (productId) {
+    //   match._id = { $ne: productId };
+    // }
+    const products = await post_model_1.default.aggregate([
+        { $match: match },
+        { $sample: { size: limit * 2 } },
+        {
+            $addFields: {
+                score: {
+                    $add: [
+                        { $multiply: ["$views", 0.3] },
+                        {
+                            $multiply: [
+                                {
+                                    $divide: [
+                                        { $subtract: [new Date(), "$createdAt"] },
+                                        1000 * 60 * 60 * 24,
+                                    ],
+                                },
+                                -1,
+                            ],
+                        },
+                    ],
+                },
+            },
+        },
+        { $sort: { score: -1 } },
+        { $limit: limit },
+        {
+            $project: {
+                title: 1,
+                price: 1,
+                images: 1,
+                location: 1,
+                createdAt: 1,
+                slug: 1,
+            },
+        },
+    ]);
+    return products;
+};
+exports.getRecommendedProductsService = getRecommendedProductsService;
+const getRecommendedProducts = async (req, res) => {
+    try {
+        const limit = parseInt(req.query.limit) || 12;
+        const user = req.user;
+        let match = {
+            status: "active",
+        };
+        // if (user?.address?.provinceCode) {
+        //   match["location.provinceCode"] = user.address.provinceCode;
+        // }
+        const products = await post_model_1.default.aggregate([
+            { $match: match },
+            { $sample: { size: limit * 2 } },
+            {
+                $addFields: {
+                    score: {
+                        $add: [
+                            { $multiply: ["$views", 0.3] },
+                            {
+                                $multiply: [
+                                    {
+                                        $divide: [
+                                            { $subtract: [new Date(), "$createdAt"] },
+                                            1000 * 60 * 60 * 24,
+                                        ],
+                                    },
+                                    -1,
+                                ],
+                            },
+                        ],
+                    },
+                },
+            },
+            { $sort: { score: -1 } },
+            { $limit: limit },
+            {
+                $project: {
+                    title: 1,
+                    price: 1,
+                    images: 1,
+                    location: 1,
+                    createdAt: 1,
+                    slug: 1,
+                },
+            },
+        ]);
+        res.json({
+            success: true,
+            data: products,
+        });
+    }
+    catch (error) {
+        res.status(500).json({
+            success: false,
+            message: "Lỗi lấy sản phẩm đề xuất",
+            error: error.message,
+        });
+    }
+};
+exports.getRecommendedProducts = getRecommendedProducts;
 const updateProduct = async (req, res) => {
     try {
         // 1. Kiểm tra đăng nhập
@@ -296,7 +491,7 @@ const updateProduct = async (req, res) => {
                 .json({ success: false, message: "Xác thực người dùng thất bại" });
         }
         const { id } = req.params;
-        const { title, description, price, priceNegotiable, images, parentCategoryId, categoryId, condition, province, provinceCode, ward, wardCode, detail, } = req.body;
+        const { title, description, price, priceNegotiable, images, parentCategoryId, categoryId, condition, province, provinceCode, ward, wardCode, detail, lat, lng, } = req.body;
         // 2. Tìm sản phẩm và Kiểm tra quyền sở hữu (Check Owner)
         const product = await post_model_1.default.findById(id);
         if (!product) {
@@ -330,7 +525,12 @@ const updateProduct = async (req, res) => {
             priceNegotiable: !!priceNegotiable,
             images,
             category: new mongoose_1.default.Types.ObjectId(finalCategory),
-            condition: condition?.toLowerCase().includes("mới") ? "new" : "used",
+            condition: {
+                label: condition?.label || "good",
+                percentage: Number(condition?.percentage) || 100,
+                isFullbox: !!condition?.isFullbox,
+                warranty: condition?.warranty || "Không bảo hành",
+            },
             location: {
                 provinceCode,
                 provinceName: province,
@@ -338,8 +538,13 @@ const updateProduct = async (req, res) => {
                 wardName: ward,
                 detail,
                 fullAddress,
+                lat,
+                lng,
             },
-            // Không cập nhật seller và status trừ khi có logic riêng
+            geo: {
+                type: "Point",
+                coordinates: [lng, lat],
+            },
         }, { new: true, runValidators: true });
         res.status(200).json({
             success: true,
@@ -504,3 +709,95 @@ const deletePost = async (req, res) => {
     }
 };
 exports.deletePost = deletePost;
+const getNearbyProducts = async (req, res) => {
+    try {
+        const { lat, lng, distance = 10, limit = 10, page = 1 } = req.query;
+        if (!lat || !lng) {
+            return res.status(400).json({
+                success: false,
+                message: "Vui lòng cung cấp tọa độ (lat, lng) để tìm kiếm quanh đây.",
+            });
+        }
+        const pageNum = parseInt(page);
+        const limitNum = parseInt(limit);
+        const skip = (pageNum - 1) * limitNum;
+        const pipeline = [
+            {
+                $geoNear: {
+                    near: {
+                        type: "Point",
+                        coordinates: [parseFloat(lng), parseFloat(lat)],
+                    },
+                    distanceField: "distance",
+                    maxDistance: parseFloat(distance) * 1000,
+                    spherical: true,
+                    query: { status: "active" },
+                },
+            },
+            {
+                $lookup: {
+                    from: "users",
+                    localField: "seller",
+                    foreignField: "_id",
+                    as: "sellerInfo",
+                },
+            },
+            {
+                $unwind: {
+                    path: "$sellerInfo",
+                    preserveNullAndEmptyArrays: true,
+                },
+            },
+            {
+                $facet: {
+                    metadata: [{ $count: "total" }],
+                    data: [
+                        { $skip: skip },
+                        { $limit: limitNum },
+                        {
+                            $project: {
+                                title: 1,
+                                slug: 1,
+                                price: 1,
+                                images: 1,
+                                location: 1,
+                                distance: 1,
+                                createdAt: 1,
+                                seller: {
+                                    _id: "$sellerInfo._id",
+                                    name: "$sellerInfo.name",
+                                    avatar: "$sellerInfo.avatar",
+                                },
+                            },
+                        },
+                    ],
+                },
+            },
+        ];
+        const result = await post_model_1.default.aggregate(pipeline);
+        const dataFacet = result[0];
+        const totalResult = dataFacet?.metadata[0]?.total || 0;
+        const formattedData = dataFacet?.data.map((item) => ({
+            ...item,
+            distanceKm: parseFloat((item.distance / 1000).toFixed(1)),
+        }));
+        res.status(200).json({
+            success: true,
+            data: formattedData || [],
+            pagination: {
+                totalResult,
+                totalPage: Math.ceil(totalResult / limitNum),
+                currentPage: pageNum,
+                limit: limitNum,
+            },
+        });
+    }
+    catch (error) {
+        res.status(500).json({
+            success: false,
+            message: "Lỗi tìm kiếm sản phẩm quanh đây",
+            error: error.message,
+        });
+    }
+};
+exports.getNearbyProducts = getNearbyProducts;

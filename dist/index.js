@@ -23,10 +23,16 @@ const category_route_1 = __importDefault(require("./routes/category.route"));
 const auth_routes_1 = __importDefault(require("./routes/auth.routes"));
 const chat_route_1 = __importDefault(require("./routes/chat.route"));
 const message_routes_1 = __importDefault(require("./routes/message.routes"));
+const order_routes_1 = __importDefault(require("./routes/order.routes"));
+const notification_route_1 = __importDefault(require("./routes/notification.route"));
+const payment_routes_1 = __importDefault(require("./routes/payment.routes"));
+const wallet_route_1 = __importDefault(require("./routes/wallet.route"));
+const ledger_routes_1 = __importDefault(require("./routes/ledger.routes"));
 dotenv_1.default.config();
 const app = (0, express_1.default)();
 const allowedOrigins = [
     "https://datn-client-alpha.vercel.app",
+    "https://datn-admin-bice.vercel.app",
     "http://localhost:3001",
     "http://localhost:3000",
 ];
@@ -63,6 +69,9 @@ io.on("connection", (socket) => {
     });
 });
 (0, db_1.default)();
+app.get("/", (req, res) => {
+    res.status(200).send("Server is running");
+});
 app.get("/health", (req, res) => {
     res.status(200).send("Server is healthy");
 });
@@ -78,6 +87,12 @@ app.use("/api/history", history_route_1.default);
 app.use("/api/categories", category_route_1.default);
 app.use("/api/chat", chat_route_1.default);
 app.use("/api/messages", message_routes_1.default);
+app.use("/api/orders", order_routes_1.default);
+app.use("/api/reviews", review_route_1.default);
+app.use("/api/notifications", notification_route_1.default);
+app.use("/api/payment", payment_routes_1.default);
+app.use("/api/wallet", wallet_route_1.default);
+app.use("/api/ledger", ledger_routes_1.default);
 const PORT = process.env.PORT || 5000;
 server.listen(PORT, () => {
     console.log(`Server running on port ${PORT}`);

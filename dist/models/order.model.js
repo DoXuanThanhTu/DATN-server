@@ -34,32 +34,34 @@ var __importStar = (this && this.__importStar) || (function () {
 })();
 Object.defineProperty(exports, "__esModule", { value: true });
 const mongoose_1 = __importStar(require("mongoose"));
-const MessageSchema = new mongoose_1.Schema({
-    conversationId: {
-        type: mongoose_1.Schema.Types.ObjectId,
-        ref: "Conversation",
-        required: true,
-    },
-    senderId: { type: mongoose_1.Schema.Types.ObjectId, ref: "User", required: true },
-    content: { type: String, trim: true },
-    imageUrl: { type: String, default: null },
-    messageType: {
+const OrderSchema = new mongoose_1.Schema({
+    orderNumber: {
         type: String,
-        enum: ["text", "offer"],
-        default: "text",
+        unique: true,
+        default: () => `ORD-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
     },
-    offerDetails: {
-        productId: { type: mongoose_1.Schema.Types.ObjectId, ref: "Product" },
-        productName: String,
-        productImage: String,
-        originalPrice: Number,
-        offeredPrice: Number,
-        status: {
-            type: String,
-            enum: ["pending", "accepted", "rejected"],
-            default: "pending",
-        },
+    buyer: { type: mongoose_1.Schema.Types.ObjectId, ref: "User", required: true },
+    seller: { type: mongoose_1.Schema.Types.ObjectId, ref: "User", required: true },
+    product: { type: mongoose_1.Schema.Types.ObjectId, ref: "Post", required: true },
+    unitPrice: { type: Number, required: true },
+    quantity: { type: Number, default: 1 },
+    totalAmount: { type: Number, required: true },
+    shippingAddress: {
+        receiverName: String,
+        phone: String,
+        fullAddress: String,
     },
+    paymentMethod: { type: String, enum: ["cod", "vnpay"], default: "cod" },
+    paymentStatus: {
+        type: String,
+        enum: ["pending", "paid", "failed", "unpaid"],
+        default: "unpaid",
+    },
+    status: {
+        type: String,
+        enum: ["pending", "processing", "shipped", "delivered", "cancelled"],
+        default: "pending",
+    },
+    notes: String,
 }, { timestamps: true });
-MessageSchema.index({ conversationId: 1, createdAt: -1 });
-exports.default = mongoose_1.default.model("Message", MessageSchema);
+exports.default = mongoose_1.default.model("Order", OrderSchema);

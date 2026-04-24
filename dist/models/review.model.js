@@ -34,15 +34,18 @@ var __importStar = (this && this.__importStar) || (function () {
 })();
 Object.defineProperty(exports, "__esModule", { value: true });
 const mongoose_1 = __importStar(require("mongoose"));
-const ReviewSchema = new mongoose_1.Schema({
+const reviewSchema = new mongoose_1.Schema({
+    order: { type: mongoose_1.Schema.Types.ObjectId, ref: "Order", required: true },
     reviewer: { type: mongoose_1.Schema.Types.ObjectId, ref: "User", required: true },
-    receiver: { type: mongoose_1.Schema.Types.ObjectId, ref: "User", required: true },
-    post: { type: mongoose_1.Schema.Types.ObjectId, ref: "Post", required: true },
+    reviewee: { type: mongoose_1.Schema.Types.ObjectId, ref: "User", required: true },
     rating: { type: Number, required: true, min: 1, max: 5 },
-    comment: { type: String, required: true, trim: true },
-    images: [{ type: String }],
+    comment: { type: String, trim: true, maxlength: 500 },
+    type: {
+        type: String,
+        enum: ["BUYER_TO_SELLER", "SELLER_TO_BUYER"],
+        required: true,
+    },
 }, { timestamps: true });
-ReviewSchema.index({ reviewer: 1, createdAt: -1 });
-ReviewSchema.index({ receiver: 1 });
-exports.default = mongoose_1.default.models.Review ||
-    mongoose_1.default.model("Review", ReviewSchema);
+// Đảm bảo một người chỉ có thể để lại 1 loại đánh giá cho 1 đơn hàng cụ thể
+reviewSchema.index({ order: 1, reviewer: 1, type: 1 }, { unique: true });
+exports.default = mongoose_1.default.model("Review", reviewSchema);

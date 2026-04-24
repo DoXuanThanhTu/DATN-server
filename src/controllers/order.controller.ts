@@ -4,7 +4,21 @@ import Post from "../models/post.model";
 import { AuthRequest } from "../middleware/auth.middleware";
 import Review from "../models/review.model";
 import { createNotification } from "./notification.controller"; // Import hàm helper của bạn
-// 1. Tạo đơn hàng (Ẩn bài đăng ngay khi tạo đơn)
+import { VNPay, ProductCode, VnpLocale, ReturnQueryFromVNPay } from "vnpay";
+import dotenv from "dotenv";
+import {
+  holdPayment,
+  moveToSeller,
+  refund,
+  settleSeller,
+} from "./ledger.controller";
+dotenv.config();
+const vnpay = new VNPay({
+  tmnCode: process.env.VNP_TMNCODE! || "6FJ3PPW9",
+  secureSecret:
+    process.env.VNP_HASH_SECRET! || "7U07PDDWDU8UGGS9D1Z7WAJUDWXCVWMK",
+  testMode: true,
+});
 export const createOrder = async (req: AuthRequest, res: Response) => {
   try {
     const {
@@ -17,25 +31,19 @@ export const createOrder = async (req: AuthRequest, res: Response) => {
 
     const product = await Post.findById(productId);
 
-    // Kiểm tra sản phẩm hợp lệ và còn Active
     if (!product || product.status !== "active") {
       return res.status(400).json({
         success: false,
-        message: "Sản phẩm hiện không còn khả dụng hoặc đang có người đặt hàng",
-      });
-    }
-
-    // Không cho phép tự mua hàng của chính mình
-    if (product.seller.toString() === req.user?._id.toString()) {
-      return res.status(400).json({
-        success: false,
-        message: "Bạn không thể đặt mua sản phẩm của chính mình",
+        message: "Sản phẩm không khả dụng",
       });
     }
 
     const price = negotiatedPrice || product.price;
 
-    const newOrder = new Order({
+    // =========================
+    // 1. CREATE ORDER
+    // =========================
+    const newOrder = await Order.create({
       buyer: req.user?._id,
       seller: product.seller,
       product: productId,
@@ -43,26 +51,63 @@ export const createOrder = async (req: AuthRequest, res: Response) => {
       quantity: quantity || 1,
       totalAmount: price * (quantity || 1),
       shippingAddress,
+      paymentStatus: paymentMethod === "vnpay" ? "pending" : "unpaid",
       paymentMethod,
       status: "pending",
     });
 
-    // Thực hiện song song: Lưu đơn và Ẩn bài đăng
-    await Promise.all([
-      newOrder.save(),
-      Post.findByIdAndUpdate(productId, { status: "hidden" }),
-    ]);
+    // =========================
+    // 2. LOCK PRODUCT
+    // =========================
+    await Post.findByIdAndUpdate(productId, {
+      status: "hidden",
+    });
+
+    // =========================
+    // 3. NOTIFICATION
+    // =========================
+
+    // =========================
+    // 4. VNPay flow
+    // =========================
+    if (paymentMethod === "vnpay") {
+      const paymentUrl = vnpay.buildPaymentUrl({
+        vnp_Amount: newOrder.totalAmount,
+        vnp_IpAddr: req.ip || "127.0.0.1",
+        vnp_TxnRef: newOrder._id.toString(),
+        vnp_OrderInfo: `Thanh toán đơn hàng ${newOrder._id}`,
+        vnp_OrderType: ProductCode.Other,
+        vnp_ReturnUrl: process.env.VNP_RETURN_URL!,
+      });
+
+      return res.status(201).json({
+        success: true,
+        paymentUrl,
+        orderId: newOrder._id,
+      });
+    }
+
+    // =========================
+    // 5. COD CASE (giữ nguyên)
+    // =========================
     await createNotification({
       receiver: product.seller,
       sender: req.user?._id,
       type: "ORDER",
       title: "Đơn hàng mới",
-      content: `Bạn vừa nhận được đơn hàng mới cho sản phẩm: ${product.title}`,
-      link: `/my-orders?tab=selling`, // Đường dẫn đến trang quản lý đơn của người bán
+      content: `Bạn có đơn hàng mới: ${product.title}`,
+      link: `/my-orders?tab=selling`,
     });
-    res.status(201).json({ success: true, data: newOrder });
+
+    return res.status(201).json({
+      success: true,
+      data: newOrder,
+    });
   } catch (error: any) {
-    res.status(500).json({ success: false, message: error.message });
+    return res.status(500).json({
+      success: false,
+      message: error.message,
+    });
   }
 };
 
@@ -157,14 +202,22 @@ export const updateOrderStatus = async (req: AuthRequest, res: Response) => {
 
       // Quan trọng: Trả hàng về lại sàn
       await Post.findByIdAndUpdate(order.product, { status: "active" });
+      if (order.paymentStatus === "paid") {
+        await refund({
+          buyerId: order.buyer,
+          amount: order.totalAmount,
+          orderId: order._id,
+        });
+      }
       await createNotification({
         receiver: isBuyer ? order.seller : order.buyer,
         sender: userId,
         type: "ORDER",
         title: "Đơn hàng đã bị hủy",
-        content: `Đơn hàng cho sản phẩm ${(order.product as any).title} đã bị hủy bởi ${isBuyer ? "người mua" : "người bán"}.`,
+        content: `Đơn hàng cho sản phẩm ${order._id} đã bị hủy bởi ${isBuyer ? "người mua" : "người bán"}.${order.paymentStatus === "paid" ? " Tiền đã được hoàn lại" : ""}`,
         link: isBuyer ? "/my-orders?tab=selling" : "/my-orders?tab=buying",
       });
+      order.paymentStatus = "failed";
     }
 
     // B. Người bán xác nhận (Pending -> Processing)
@@ -210,7 +263,16 @@ export const updateOrderStatus = async (req: AuthRequest, res: Response) => {
           .json({ success: false, message: "Đơn hàng chưa được giao đến bạn" });
 
       // Giao dịch thành công: Chuyển Post sang "sold"
-      await Post.findByIdAndUpdate(order.product, { status: "sold" });
+      await settleSeller({
+        sellerId: order.seller,
+        amount: order.totalAmount,
+        orderId: order._id,
+        paymentMethod: order.paymentMethod,
+      });
+      await Post.findByIdAndUpdate(order.product, {
+        status: "sold",
+      });
+      order.paymentStatus = "paid";
     }
 
     order.status = status;

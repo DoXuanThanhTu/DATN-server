@@ -44,11 +44,28 @@ const userSchema = new mongoose_1.Schema({
         index: true,
     },
     password: { type: String, required: true },
+    phone: { type: String, default: "" }, // Số điện thoại
     avatar: { type: String, default: "" },
+    gender: {
+        type: String,
+        enum: ["male", "female", "other"],
+        default: "other",
+    },
+    address: {
+        provinceCode: { type: String, required: false, index: true },
+        provinceName: { type: String, required: false },
+        wardCode: { type: String, required: false, index: true },
+        wardName: { type: String, required: false },
+        detail: { type: String },
+        fullAddress: { type: String },
+        lat: Number,
+        lng: Number,
+    },
     role: { type: String, enum: ["user", "admin"], default: "user" },
     rating: { type: Number, default: 0 },
     totalReviews: { type: Number, default: 0 },
     isActive: { type: Boolean, default: true },
     lastActive: { type: Date, default: Date.now },
 }, { timestamps: true });
-exports.default = mongoose_1.default.model("User", userSchema);
+exports.default = mongoose_1.default.models.User ||
+    mongoose_1.default.model("User", userSchema);
