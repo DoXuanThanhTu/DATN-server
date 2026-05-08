@@ -1472,15 +1472,10 @@ export async function getForYouRecommendations(
     console.log("📈 Add trending items");
 
     const trending = await getTrendingGeneral(limit * 2);
-
+    console.log("📦 Trending Candidate Items:", trending.length);
     for (const item of trending) {
       const id = item._id.toString();
-
-      if (!interactedItemIds.has(id) && !candidateScores.has(id)) {
-        candidateScores.set(id, (candidateScores.get(id) || 0) + 0.5);
-
-        console.log("🔥 Trending Added:", id);
-      }
+      candidateScores.set(id, (candidateScores.get(id) || 0) + 0.2);
     }
   }
 
@@ -1569,28 +1564,13 @@ async function getTrendingGeneral(limit: number): Promise<any[]> {
   const sevenDaysAgo = new Date();
   sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
 
-  const trending = await UserInteraction.aggregate([
-    {
-      $match: {
-        createdAt: { $gte: sevenDaysAgo },
-        post: { $ne: null },
-        status: "active",
-      },
-    },
-    { $group: { _id: "$post", total: { $sum: 1 } } },
-    { $sort: { total: -1 } },
-    { $limit: limit },
-    // {
-    //   $lookup: {
-    //     from: "posts",
-    //     localField: "_id",
-    //     foreignField: "_id",
-    //     as: "post",
-    //   },
-    // },
-    // { $unwind: "$post" },
-    // { $replaceRoot: { newRoot: "$post" } },
-  ]);
+  const trending = await Post.find({
+    // createdAt: { $gte: sevenDaysAgo },
+    status: "active",
+  })
+    .lean()
+    .sort({ createdAt: -1 })
+    .limit(100);
   return trending.map((p) => ({
     ...p,
     score: 1,
