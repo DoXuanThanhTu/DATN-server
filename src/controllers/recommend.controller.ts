@@ -324,10 +324,10 @@ export async function getContentBasedRecommendations(
 
     const finalScore =
       0.4 * tfidfSim +
-      0.2 * category +
+      0.3 * category +
       0.15 * price +
       0.1 * location +
-      0.1 * condition +
+      // 0.1 * condition +
       0.05 * popularity;
 
     return {
@@ -338,7 +338,7 @@ export async function getContentBasedRecommendations(
         category: Number(category.toFixed(4)),
         price: Number(price.toFixed(4)),
         location: Number(location.toFixed(4)),
-        condition: Number(condition.toFixed(4)),
+        // condition: Number(condition.toFixed(4)),
         popularity: Number(popularity.toFixed(4)),
       },
     };
