@@ -3,7 +3,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.getNearbyProducts = exports.deletePost = exports.rejectPost = exports.hidePost = exports.approvePost = exports.getMyPosts = exports.updateProduct = exports.getRecommendedProducts = exports.getRecommendedProductsService = exports.getRelatedProducts = exports.createProduct = exports.getProductDetail = exports.getProducts = void 0;
+exports.getPosts = exports.getNearbyProducts = exports.deletePost = exports.rejectPost = exports.hidePost = exports.approvePost = exports.getMyPosts = exports.updateProduct = exports.getRecommendedProducts = exports.getRecommendedProductsService = exports.getRelatedProducts = exports.createProduct = exports.getProductDetail = exports.getProducts = void 0;
 const slugify_1 = __importDefault(require("slugify"));
 const post_model_1 = __importDefault(require("../models/post.model"));
 const mongoose_1 = __importDefault(require("mongoose"));
@@ -193,53 +193,53 @@ const getProductDetail = async (req, res) => {
                 .limit(6) // Lấy tối đa 6 sản phẩm
                 .sort({ createdAt: -1 }) // Ưu tiên tin mới nhất
                 .lean();
-            if (relatedProducts.length === 0) {
-                let limit = 6;
-                let match = {
-                    status: "active",
-                    _id: { $ne: product._id },
-                };
-                // if (productId) {
-                //   match._id = { $ne: productId };
-                // }
-                const products = await post_model_1.default.aggregate([
-                    { $match: match },
-                    { $sample: { size: limit * 2 } },
-                    {
-                        $addFields: {
-                            score: {
-                                $add: [
-                                    { $multiply: ["$views", 0.3] },
-                                    {
-                                        $multiply: [
-                                            {
-                                                $divide: [
-                                                    { $subtract: [new Date(), "$createdAt"] },
-                                                    1000 * 60 * 60 * 24,
-                                                ],
-                                            },
-                                            -1,
-                                        ],
-                                    },
-                                ],
-                            },
-                        },
-                    },
-                    { $sort: { score: -1 } },
-                    { $limit: limit },
-                    {
-                        $project: {
-                            title: 1,
-                            price: 1,
-                            images: 1,
-                            location: 1,
-                            createdAt: 1,
-                            slug: 1,
-                        },
-                    },
-                ]);
-                relatedProducts.push(...products);
-            }
+            // if (relatedProducts.length === 0) {
+            //   let limit = 6;
+            //   let match: any = {
+            //     status: "active",
+            //     _id: { $ne: product._id },
+            //   };
+            //   // if (productId) {
+            //   //   match._id = { $ne: productId };
+            //   // }
+            //   const products = await Post.aggregate([
+            //     { $match: match },
+            //     { $sample: { size: limit * 2 } },
+            //     {
+            //       $addFields: {
+            //         score: {
+            //           $add: [
+            //             { $multiply: ["$views", 0.3] },
+            //             {
+            //               $multiply: [
+            //                 {
+            //                   $divide: [
+            //                     { $subtract: [new Date(), "$createdAt"] },
+            //                     1000 * 60 * 60 * 24,
+            //                   ],
+            //                 },
+            //                 -1,
+            //               ],
+            //             },
+            //           ],
+            //         },
+            //       },
+            //     },
+            //     { $sort: { score: -1 } },
+            //     { $limit: limit },
+            //     {
+            //       $project: {
+            //         title: 1,
+            //         price: 1,
+            //         images: 1,
+            //         location: 1,
+            //         createdAt: 1,
+            //         slug: 1,
+            //       },
+            //     },
+            //   ]);
+            //   relatedProducts.push(...products);
+            // }
             // 4. Trả về cả sản phẩm chính và danh sách liên quan
             res.json({
                 success: true,
@@ -801,3 +801,135 @@ const getNearbyProducts = async (req, res) => {
     }
 };
 exports.getNearbyProducts = getNearbyProducts;
+const getPosts = async (req, res) => {
+    try {
+        const page = parseInt(req.query.page) || 1;
+        const limit = parseInt(req.query.limit) || 8;
+        const skip = (page - 1) * limit;
+        const { keyword, parentCategoryId, categoryId, min, max, provinceCode, wardCode, condition, sortBy, status, } = req.query;
+        const pipeline = [];
+        //Search
+        if (keyword) {
+            pipeline.push({
+                $search: {
+                    index: "search",
+                    compound: {
+                        should: [
+                            {
+                                autocomplete: {
+                                    query: keyword,
+                                    path: "title",
+                                    score: { boost: { value: 10 } },
+                                    fuzzy: {
+                                        maxEdits: 1,
+                                    },
+                                },
+                            },
+                            {
+                                text: {
+                                    query: keyword,
+                                    path: "description",
+                                    score: { boost: { value: 5 } },
+                                },
+                            },
+                        ],
+                    },
+                },
+            });
+        }
+        //Match
+        const matchStage = {};
+        const isAdmin = req.user?.role === "admin";
+        if (isAdmin) {
+            if (status) {
+                matchStage.status = status;
+            }
+        }
+        else {
+            matchStage.status = "active";
+        }
+        if (categoryId) {
+            matchStage.category = categoryId;
+        }
+        else if (parentCategoryId) {
+            const subCategories = await category_model_1.default.find({ parentId: parentCategoryId });
+            const subCategoryIds = subCategories.map((cat) => cat._id);
+            matchStage.category = { $in: subCategoryIds };
+        }
+        pipeline.push({ $match: matchStage });
+        //Lookup users
+        pipeline.push({
+            $lookup: {
+                from: "users",
+                localField: "seller",
+                foreignField: "_id",
+                as: "sellerInfo",
+            },
+        }, {
+            $unwind: {
+                path: "$sellerInfo",
+                preserveNullAndEmptyArrays: true,
+            },
+        }, {
+            $lookup: {
+                from: "categories",
+                localField: "category",
+                foreignField: "_id",
+                as: "categoryInfo",
+            },
+        }, {
+            $unwind: {
+                path: "$categoryInfo",
+                preserveNullAndEmptyArrays: true,
+            },
+        });
+        const projectFields = {
+            title: 1,
+            category: {
+                _id: "$categoryInfo._id",
+                name: "$categoryInfo.name",
+                parentId: "$categoryInfo.parentId",
+            },
+            // slug: 1,
+            // price: 1,
+            // images: 1,
+            // location: 1,
+            // condition: 1,
+            // createdAt: 1,
+            // description: 1,
+            seller: {
+                _id: "$sellerInfo._id",
+                name: "$sellerInfo.name",
+                avatar: "$sellerInfo.avatar",
+            },
+        };
+        //Sort
+        pipeline.push({
+            $facet: {
+                metadata: [{ $count: "total" }],
+                data: [{ $skip: skip }, { $limit: limit }, { $project: projectFields }],
+            },
+        });
+        const result = await post_model_1.default.aggregate(pipeline);
+        const totalResult = result[0]?.metadata[0]?.total || 0;
+        const data = result[0]?.data || [];
+        res.status(200).json({
+            success: true,
+            data: data,
+            pagination: {
+                totalResult,
+                totalPage: Math.ceil(totalResult / limit),
+                currentPage: page,
+                limit,
+            },
+        });
+    }
+    catch (error) {
+        res.status(500).json({
+            success: false,
+            message: "Lỗi lấy thông tin sản phẩm",
+            error: error.message,
+        });
+    }
+};
+exports.getPosts = getPosts;

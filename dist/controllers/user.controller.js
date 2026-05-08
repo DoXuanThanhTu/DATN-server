@@ -3,10 +3,19 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.getUserProfile = exports.getAllUsers = exports.updateStatus = exports.updateProfile = exports.getMe = void 0;
+exports.trackUserInteraction = exports.getUserProfile = exports.getAllUsers = exports.updateStatus = exports.updateProfile = exports.getMe = void 0;
 const user_model_1 = __importDefault(require("../models/user.model"));
 const review_model_1 = __importDefault(require("../models/review.model"));
 const post_model_1 = __importDefault(require("../models/post.model"));
+const userInteraction_model_1 = __importDefault(require("../models/userInteraction.model"));
+const interactionScoreMap = {
+    view: 1,
+    like: 2,
+    save: 3,
+    chat: 4,
+    purchase: 5,
+    search: 1,
+};
 // Lấy thông tin cá nhân của người dùng hiện tại
 const getMe = async (req, res) => {
     try {
@@ -167,3 +176,67 @@ const getUserProfile = async (req, res) => {
     }
 };
 exports.getUserProfile = getUserProfile;
+const trackUserInteraction = async (req, res) => {
+    try {
+        const userId = req.user?._id;
+        if (!userId) {
+            return res
+                .status(200)
+                .json({ success: true, message: "User not authenticated" });
+        }
+        const { post, keyword, type } = req.body;
+        if (!type) {
+            return res
+                .status(400)
+                .json({ success: false, message: "Type is required" });
+        }
+        const WINDOW_MS = 1000 * 60 * 30;
+        const thirtyMinutesAgo = new Date(Date.now() - WINDOW_MS);
+        const filter = { user: userId, type };
+        const insertData = {
+            user: userId,
+            type,
+            score: interactionScoreMap[type] || 1,
+        };
+        if (type === "search") {
+            const normalized = keyword?.toLowerCase().trim();
+            if (!normalized)
+                return res
+                    .status(400)
+                    .json({ success: false, message: "Keyword is required" });
+            filter.normalizedKeyword = normalized;
+            insertData.keyword = keyword;
+            insertData.normalizedKeyword = normalized;
+        }
+        else {
+            if (!post)
+                return res
+                    .status(400)
+                    .json({ success: false, message: "Post is required" });
+            filter.post = post;
+            insertData.post = post;
+        }
+        filter.createdAt = { $gte: thirtyMinutesAgo };
+        const result = await userInteraction_model_1.default.findOneAndUpdate(filter, { $setOnInsert: insertData }, {
+            upsert: true,
+            returnDocument: "after",
+            setDefaultsOnInsert: true,
+            includeResultMetadata: true,
+        });
+        const isUpdatedExisting = result.lastErrorObject?.updatedExisting;
+        return res.json({
+            success: true,
+            isNew: !isUpdatedExisting,
+            action: isUpdatedExisting ? "ALREADY_EXISTS" : "CREATED_NEW",
+            message: isUpdatedExisting
+                ? `Tương tác ${type} đã tồn tại trong 30p qua.`
+                : `Đã tạo tương tác ${type} mới.`,
+            data: result.value,
+        });
+    }
+    catch (error) {
+        console.error("TRACK_ERROR:", error);
+        return res.status(500).json({ success: false, message: error.message });
+    }
+};
+exports.trackUserInteraction = trackUserInteraction;

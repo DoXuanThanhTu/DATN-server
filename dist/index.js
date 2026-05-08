@@ -10,6 +10,7 @@ const dotenv_1 = __importDefault(require("dotenv"));
 const http_1 = __importDefault(require("http"));
 const db_1 = __importDefault(require("./configs/db"));
 const socket_1 = require("./socket/socket");
+const promises_1 = __importDefault(require("node:dns/promises"));
 // Route imports
 const user_route_1 = __importDefault(require("./routes/user.route"));
 const upload_route_1 = __importDefault(require("./routes/upload.route"));
@@ -28,7 +29,9 @@ const notification_route_1 = __importDefault(require("./routes/notification.rout
 const payment_routes_1 = __importDefault(require("./routes/payment.routes"));
 const wallet_route_1 = __importDefault(require("./routes/wallet.route"));
 const ledger_routes_1 = __importDefault(require("./routes/ledger.routes"));
+const recommend_route_1 = __importDefault(require("./routes/recommend.route"));
 dotenv_1.default.config();
+promises_1.default.setServers(["1.1.1.1", "1.0.0.1"]);
 const app = (0, express_1.default)();
 const allowedOrigins = [
     "https://datn-client-alpha.vercel.app",
@@ -93,6 +96,7 @@ app.use("/api/notifications", notification_route_1.default);
 app.use("/api/payment", payment_routes_1.default);
 app.use("/api/wallet", wallet_route_1.default);
 app.use("/api/ledger", ledger_routes_1.default);
+app.use("/api/recommend", recommend_route_1.default);
 const PORT = process.env.PORT || 5000;
 server.listen(PORT, () => {
     console.log(`Server running on port ${PORT}`);

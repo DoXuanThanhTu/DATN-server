@@ -89,7 +89,7 @@ const productSchema = new Schema<IPost>(
     status: {
       type: String,
       enum: ["pending", "active", "sold", "hidden", "rejected"],
-      default: "pending",
+      default: "active",
       index: true,
     },
     views: { type: Number, default: 0 },

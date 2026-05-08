@@ -214,57 +214,57 @@ export const getProductDetail = async (req: Request, res: Response) => {
         .limit(6) // Lấy tối đa 6 sản phẩm
         .sort({ createdAt: -1 }) // Ưu tiên tin mới nhất
         .lean();
-      if (relatedProducts.length === 0) {
-        let limit = 6;
-        let match: any = {
-          status: "active",
-          _id: { $ne: product._id },
-        };
-        // if (productId) {
-        //   match._id = { $ne: productId };
-        // }
+      // if (relatedProducts.length === 0) {
+      //   let limit = 6;
+      //   let match: any = {
+      //     status: "active",
+      //     _id: { $ne: product._id },
+      //   };
+      //   // if (productId) {
+      //   //   match._id = { $ne: productId };
+      //   // }
 
-        const products = await Post.aggregate([
-          { $match: match },
-          { $sample: { size: limit * 2 } },
+      //   const products = await Post.aggregate([
+      //     { $match: match },
+      //     { $sample: { size: limit * 2 } },
 
-          {
-            $addFields: {
-              score: {
-                $add: [
-                  { $multiply: ["$views", 0.3] },
-                  {
-                    $multiply: [
-                      {
-                        $divide: [
-                          { $subtract: [new Date(), "$createdAt"] },
-                          1000 * 60 * 60 * 24,
-                        ],
-                      },
-                      -1,
-                    ],
-                  },
-                ],
-              },
-            },
-          },
+      //     {
+      //       $addFields: {
+      //         score: {
+      //           $add: [
+      //             { $multiply: ["$views", 0.3] },
+      //             {
+      //               $multiply: [
+      //                 {
+      //                   $divide: [
+      //                     { $subtract: [new Date(), "$createdAt"] },
+      //                     1000 * 60 * 60 * 24,
+      //                   ],
+      //                 },
+      //                 -1,
+      //               ],
+      //             },
+      //           ],
+      //         },
+      //       },
+      //     },
 
-          { $sort: { score: -1 } },
-          { $limit: limit },
+      //     { $sort: { score: -1 } },
+      //     { $limit: limit },
 
-          {
-            $project: {
-              title: 1,
-              price: 1,
-              images: 1,
-              location: 1,
-              createdAt: 1,
-              slug: 1,
-            },
-          },
-        ]);
-        relatedProducts.push(...products);
-      }
+      //     {
+      //       $project: {
+      //         title: 1,
+      //         price: 1,
+      //         images: 1,
+      //         location: 1,
+      //         createdAt: 1,
+      //         slug: 1,
+      //       },
+      //     },
+      //   ]);
+      //   relatedProducts.push(...products);
+      // }
       // 4. Trả về cả sản phẩm chính và danh sách liên quan
       res.json({
         success: true,
@@ -902,6 +902,153 @@ export const getNearbyProducts = async (req: Request, res: Response) => {
     res.status(500).json({
       success: false,
       message: "Lỗi tìm kiếm sản phẩm quanh đây",
+      error: error.message,
+    });
+  }
+};
+export const getPosts = async (req: any, res: Response) => {
+  try {
+    const page = parseInt(req.query.page as string) || 1;
+    const limit = parseInt(req.query.limit as string) || 8;
+    const skip = (page - 1) * limit;
+
+    const {
+      keyword,
+      parentCategoryId,
+      categoryId,
+      min,
+      max,
+      provinceCode,
+      wardCode,
+      condition,
+      sortBy,
+      status,
+    } = req.query;
+
+    const pipeline: any[] = [];
+    //Search
+    if (keyword) {
+      pipeline.push({
+        $search: {
+          index: "search",
+          compound: {
+            should: [
+              {
+                autocomplete: {
+                  query: keyword,
+                  path: "title",
+                  score: { boost: { value: 10 } },
+                  fuzzy: {
+                    maxEdits: 1,
+                  },
+                },
+              },
+              {
+                text: {
+                  query: keyword,
+                  path: "description",
+                  score: { boost: { value: 5 } },
+                },
+              },
+            ],
+          },
+        },
+      });
+    }
+    //Match
+    const matchStage: any = {};
+    const isAdmin = req.user?.role === "admin";
+    if (isAdmin) {
+      if (status) {
+        matchStage.status = status;
+      }
+    } else {
+      matchStage.status = "active";
+    }
+    if (categoryId) {
+      matchStage.category = categoryId;
+    } else if (parentCategoryId) {
+      const subCategories = await Category.find({ parentId: parentCategoryId });
+      const subCategoryIds = subCategories.map((cat) => cat._id);
+      matchStage.category = { $in: subCategoryIds };
+    }
+    pipeline.push({ $match: matchStage });
+    //Lookup users
+    pipeline.push(
+      {
+        $lookup: {
+          from: "users",
+          localField: "seller",
+          foreignField: "_id",
+          as: "sellerInfo",
+        },
+      },
+      {
+        $unwind: {
+          path: "$sellerInfo",
+          preserveNullAndEmptyArrays: true,
+        },
+      },
+      {
+        $lookup: {
+          from: "categories",
+          localField: "category",
+          foreignField: "_id",
+          as: "categoryInfo",
+        },
+      },
+      {
+        $unwind: {
+          path: "$categoryInfo",
+          preserveNullAndEmptyArrays: true,
+        },
+      },
+    );
+    const projectFields: any = {
+      title: 1,
+      category: {
+        _id: "$categoryInfo._id",
+        name: "$categoryInfo.name",
+        parentId: "$categoryInfo.parentId",
+      },
+      // slug: 1,
+      // price: 1,
+      // images: 1,
+      // location: 1,
+      // condition: 1,
+      // createdAt: 1,
+      // description: 1,
+      seller: {
+        _id: "$sellerInfo._id",
+        name: "$sellerInfo.name",
+        avatar: "$sellerInfo.avatar",
+      },
+    };
+    //Sort
+
+    pipeline.push({
+      $facet: {
+        metadata: [{ $count: "total" }],
+        data: [{ $skip: skip }, { $limit: limit }, { $project: projectFields }],
+      },
+    });
+    const result = await Post.aggregate(pipeline);
+    const totalResult = result[0]?.metadata[0]?.total || 0;
+    const data = result[0]?.data || [];
+    res.status(200).json({
+      success: true,
+      data: data,
+      pagination: {
+        totalResult,
+        totalPage: Math.ceil(totalResult / limit),
+        currentPage: page,
+        limit,
+      },
+    });
+  } catch (error: any) {
+    res.status(500).json({
+      success: false,
+      message: "Lỗi lấy thông tin sản phẩm",
       error: error.message,
     });
   }

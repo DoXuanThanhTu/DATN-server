@@ -4,6 +4,8 @@ import dotenv from "dotenv";
 import http from "http";
 import connectDB from "./configs/db";
 import { setupSocket } from "./socket/socket";
+import dns from "node:dns/promises";
+
 
 // Route imports
 import userRoute from "./routes/user.route";
@@ -23,7 +25,9 @@ import notificationRoute from "./routes/notification.route";
 import paymentRoute from "./routes/payment.routes";
 import walletRoute from "./routes/wallet.route";
 import ledgerRoute from "./routes/ledger.routes";
+import recommendRoute from "./routes/recommend.route";
 dotenv.config();
+dns.setServers(["1.1.1.1", "1.0.0.1"]);
 
 const app = express();
 
@@ -101,6 +105,8 @@ app.use("/api/notifications", notificationRoute);
 app.use("/api/payment", paymentRoute);
 app.use("/api/wallet", walletRoute);
 app.use("/api/ledger", ledgerRoute);
+app.use("/api/recommend", recommendRoute);
+
 const PORT = process.env.PORT || 5000;
 server.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);

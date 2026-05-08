@@ -8,6 +8,7 @@ const express_1 = __importDefault(require("express"));
 const post_controller_2 = require("../controllers/post.controller");
 const auth_middleware_1 = require("../middleware/auth.middleware");
 const router = express_1.default.Router();
+router.get("/test/1", post_controller_1.getPosts);
 router.get("/nearby", post_controller_1.getNearbyProducts);
 router.post("/", auth_middleware_1.protect, post_controller_2.createProduct);
 router.get("/me", auth_middleware_1.protect, post_controller_1.getMyPosts);

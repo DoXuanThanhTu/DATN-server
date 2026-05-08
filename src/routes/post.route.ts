@@ -3,6 +3,7 @@ import {
   deletePost,
   getMyPosts,
   getNearbyProducts,
+  getPosts,
   getRecommendedProducts,
   getRelatedProducts,
   hidePost,
@@ -18,6 +19,7 @@ import {
 import { authorize, checkAuth, protect } from "../middleware/auth.middleware";
 
 const router = express.Router();
+router.get("/test/1", getPosts);
 router.get("/nearby", getNearbyProducts);
 router.post("/", protect, createProduct);
 router.get("/me", protect, getMyPosts);
