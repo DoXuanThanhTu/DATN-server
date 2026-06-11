@@ -14,9 +14,8 @@ import {
 } from "./ledger.controller";
 dotenv.config();
 const vnpay = new VNPay({
-  tmnCode: process.env.VNP_TMNCODE! || "6FJ3PPW9",
-  secureSecret:
-    process.env.VNP_HASH_SECRET! || "7U07PDDWDU8UGGS9D1Z7WAJUDWXCVWMK",
+  tmnCode: process.env.VNP_TMN_CODE!,
+  secureSecret: process.env.VNP_HASH_SECRET!,
   testMode: true,
 });
 export const createOrder = async (req: AuthRequest, res: Response) => {
@@ -75,7 +74,7 @@ export const createOrder = async (req: AuthRequest, res: Response) => {
         vnp_Amount: newOrder.totalAmount,
         vnp_IpAddr: req.ip || "127.0.0.1",
         vnp_TxnRef: newOrder._id.toString(),
-        vnp_OrderInfo: `Thanh toán đơn hàng ${newOrder._id}`,
+        vnp_OrderInfo: `Thanh toan don hang ${newOrder._id}`,
         vnp_OrderType: ProductCode.Other,
         vnp_ReturnUrl: process.env.VNP_RETURN_URL!,
       });

@@ -1,15 +1,14 @@
 import { Request, Response } from "express";
-import { VNPay, ProductCode, VnpLocale, ReturnQueryFromVNPay } from "vnpay";
+import { VNPay, ProductCode, VnpLocale, ReturnQueryFromVNPay, dateFormat } from "vnpay";
 import Order from "../models/order.model";
 import Post from "../models/post.model";
-import { createNotification } from "./notification.controller"; // Import hàm helper của bạn
+import { createNotification } from "./notification.controller"; 
 import { postLedger } from "src/services/ledger.service";
 import { holdPayment, moveToSeller } from "./ledger.controller";
-
-// import dotenv from "dotenv";
-// dotenv.config();
+import dotenv from "dotenv";
+dotenv.config();
 const vnpay = new VNPay({
-  tmnCode: process.env.VNP_TMNCODE!,
+  tmnCode: process.env.VNP_TMN_CODE!,
   secureSecret: process.env.VNP_HASH_SECRET!,
   testMode: true,
 });
@@ -21,13 +20,15 @@ export const createPayment = async (req: Request, res: Response) => {
 
     const paymentUrl = vnpay.buildPaymentUrl({
       vnp_Amount: amount,
-      vnp_IpAddr: req.ip || "127.0.0.1",
-      vnp_TxnRef: Date.now().toString(), // random cho demo
+vnp_IpAddr: "127.0.0.1",
+      vnp_TxnRef: Date.now().toString(), 
       vnp_OrderInfo: "Thanh toan demo",
       vnp_OrderType: ProductCode.Other,
-      vnp_ReturnUrl: `http://localhost:5000/api/payment/payment-result`,
+      vnp_ReturnUrl: `https://datn-server-n9f7.onrender.com/api/payment/return`,
+       vnp_Locale: VnpLocale.VN,
+    vnp_CreateDate: dateFormat(new Date()),
+    vnp_ExpireDate: dateFormat(new Date(Date.now() + 15 * 60 * 1000)),
     });
-
     res.json({
       success: true,
       paymentUrl,

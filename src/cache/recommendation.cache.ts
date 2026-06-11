@@ -1,12 +1,5 @@
 import Redis from "ioredis";
 
-/**
- * =====================================
- * REDIS CLIENT
- * Kết nối singleton, tự reconnect
- * =====================================
- */
-
 let redisClient: Redis | null = null;
 
 export function getRedis(): Redis {
@@ -27,31 +20,12 @@ export function getRedis(): Redis {
   return redisClient;
 }
 
-/**
- * =====================================
- * TTL CONSTANTS (seconds)
- * =====================================
- */
-
 export const TTL = {
-  /** Kết quả hybrid cho từng item — cache 30 phút */
   HYBRID_RESULT: 10 * 60,
-
-  /** Trending items cùng category — cache 1 tiếng */
   TRENDING: 60 * 60,
-
-  /** TF-IDF vector của 1 post — cache 2 tiếng */
   TFIDF_VECTOR: 60 * 60 * 2,
-
-  /** Precomputed recommendations — cache 6 tiếng */
   PRECOMPUTED: 60 * 60 * 6,
 };
-
-/**
- * =====================================
- * KEY BUILDERS
- * =====================================
- */
 
 export const CacheKey = {
   hybrid: (itemId: string) => `rec:hybrid:${itemId}`,
@@ -61,12 +35,6 @@ export const CacheKey = {
   forUser: (userId: string) => `for_user:${userId}`,
   tfidfVector: (itemId: string) => `rec:tfidf:${itemId}`,
 };
-
-/**
- * =====================================
- * GENERIC CACHE HELPERS
- * =====================================
- */
 
 export async function cacheOrFetch<T>(
   key: string,
@@ -78,8 +46,6 @@ export async function cacheOrFetch<T>(
   try {
     const cached = await redis.get(key);
     if (cached) {
-      // console.log("cached", key, cached, "\n");
-
       return JSON.parse(cached) as T;
     }
   } catch (err: any) {

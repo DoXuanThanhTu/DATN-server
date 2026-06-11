@@ -26,7 +26,6 @@ export const setupSocket = (server: http.Server) => {
 
     if (userId && userId !== "undefined") {
       userSocketMap.set(userId, socket.id);
-      // Thông báo danh sách online
       io.emit("getOnlineUsers", Array.from(userSocketMap.keys()));
     }
 
