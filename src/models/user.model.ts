@@ -20,6 +20,7 @@ export interface IUser extends Document {
   role: "user" | "admin";
   rating: number;
   totalReviews: number;
+  status: "active" | "blocked" | "deleted";
   isActive: boolean;
   lastActive: Date;
 }
@@ -55,6 +56,11 @@ const userSchema = new Schema<IUser>(
     role: { type: String, enum: ["user", "admin"], default: "user" },
     rating: { type: Number, default: 0 },
     totalReviews: { type: Number, default: 0 },
+    status: {
+      type: String,
+      enum: ["active", "blocked", "deleted"],
+      default: "active",
+    },
     isActive: { type: Boolean, default: true },
     lastActive: { type: Date, default: Date.now },
   },

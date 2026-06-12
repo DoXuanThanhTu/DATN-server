@@ -10,17 +10,20 @@ export const toggleFavorite = async (req: AuthRequest, res: Response) => {
   const existing = await Favorite.findOne({ user: userId, post: postId });
 
   if (existing) {
-    await Favorite.deleteOne({ _id: existing._id });
-    return res.status(200).json({ message: "Đã bỏ lưu tin" });
+    const deleted = await Favorite.deleteOne({ _id: existing._id });
+    return res.status(200).json({ message: "Đã bỏ lưu tin", success: deleted.deletedCount > 0 });
   }
 
-  await Favorite.create({ user: userId, post: postId });
-  res.status(201).json({ message: "Đã lưu tin thành công" });
+  const created = await Favorite.create({ user: userId, post: postId });
+  res.status(201).json({ message: "Đã lưu tin thành công", success: created._id !== undefined, data: created });
 };
 
 export const getMyFavorites = async (req: AuthRequest, res: Response) => {
-  const favorites = await Favorite.find({ user: req.user!._id })
+  if (!req.user) {
+    return res.status(401).json({ message: "Unauthorized", success: false });
+  }
+  const favorites = await Favorite.find({ user: req.user._id })
     .populate("post")
     .sort({ createdAt: -1 });
-  res.status(200).json({ data: favorites });
+  res.status(200).json({ data: favorites, success: true });
 };

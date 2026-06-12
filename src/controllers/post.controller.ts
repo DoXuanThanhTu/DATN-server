@@ -1053,3 +1053,28 @@ export const getPosts = async (req: any, res: Response) => {
     });
   }
 };
+// export const savePost = async (req: AuthRequest, res: Response) => {
+//   try {
+//     const user = req.user;
+//     if (!user) {
+//       return res.status(401).json({
+//         success: false,
+//         message: "Bạn chưa đăng nhập",
+//       });
+//     }
+//     const { id } = req.params;
+//     const action = req.body.action;
+//     const user = await
+//     //TODO: Save post
+//     res.status(200).json({
+//       success: true,
+//       data: user,
+//     });
+//   } catch (error: any) {
+//     res.status(500).json({
+//       success: false,
+//       message: "Xảy ra lỗi",
+//       error: error.message,
+//     });
+//   }
+// };

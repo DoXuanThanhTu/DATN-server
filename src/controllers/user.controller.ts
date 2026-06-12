@@ -78,16 +78,6 @@ export const updateProfile = async (req: AuthRequest, res: Response) => {
   }
 };
 
-export const updateStatus = async (req: AuthRequest, res: Response) => {
-  try {
-    await User.findByIdAndUpdate(req.user!._id, {
-      lastActive: new Date(),
-    });
-    res.sendStatus(200);
-  } catch (error) {
-    res.sendStatus(500);
-  }
-};
 
 export const getAllUsers = async (req: AuthRequest, res: Response) => {
   try {
@@ -256,5 +246,191 @@ export const trackUserInteraction = async (req: AuthRequest, res: Response) => {
   } catch (error: any) {
     console.error("TRACK_ERROR:", error);
     return res.status(500).json({ success: false, message: error.message });
+  }
+};
+export const getAllUsersAdmin = async (req: AuthRequest, res: Response) => {
+  try {
+    const page = parseInt(req.query.page as string) || 1;
+    const limit = parseInt(req.query.limit as string) || 10;
+    const skip = (page - 1) * limit;
+
+    const {
+      keyword,
+      role,
+      status,
+      sortBy,
+    } = req.query;
+
+    const pipeline: any[] = [];
+
+    // SEARCH
+
+
+
+    // FILTER
+    const matchStage: any = {};
+
+    if (role) {
+      matchStage.role = role;
+    }
+
+    if (status) {
+      matchStage.status = status;
+    }
+    if (keyword) {
+      matchStage.name = {
+        $regex: keyword,
+        $options: "i",
+      };
+    }
+    pipeline.push({
+      $match: matchStage,
+    });
+
+    // SORT
+    let sortStage: any = {};
+
+    switch (sortBy) {
+      case "oldest":
+        sortStage = {
+          createdAt: 1,
+        };
+        break;
+
+      case "name_asc":
+        sortStage = {
+          name: 1,
+        };
+        break;
+
+      case "name_desc":
+        sortStage = {
+          name: -1,
+        };
+        break;
+
+      default:
+        sortStage = keyword
+          ? {
+              score: {
+                $meta: "searchScore",
+              },
+              createdAt: -1,
+            }
+          : {
+              createdAt: -1,
+            };
+    }
+
+    pipeline.push({
+      $sort: sortStage,
+    });
+
+    // PROJECT
+    const projectFields: any = {
+      _id: 1,
+      name: 1,
+      email: 1,
+      avatar: 1,
+      role: 1,
+      status: 1,
+      rating: 1,
+      createdAt: 1,
+    };
+
+    if (keyword) {
+      projectFields.score = {
+        $meta: "searchScore",
+      };
+    }
+
+    // FACET
+    pipeline.push({
+      $facet: {
+        metadata: [
+          {
+            $count: "total",
+          },
+        ],
+        data: [
+          {
+            $skip: skip,
+          },
+          {
+            $limit: limit,
+          },
+          {
+            $project: projectFields,
+          },
+        ],
+      },
+    });
+
+    const result = await User.aggregate(pipeline);
+
+    const totalResult =
+      result[0]?.metadata[0]?.total || 0;
+
+    return res.json({
+      success: true,
+      data: result[0]?.data || [],
+      pagination: {
+        totalResult,
+        totalPage: Math.ceil(
+          totalResult / limit
+        ),
+        currentPage: page,
+        limit,
+      },
+    });
+  } catch (error: any) {
+    return res.status(500).json({
+      success: false,
+      message:
+        "Lỗi lấy danh sách người dùng",
+      error: error.message,
+    });
+  }
+};
+export const blockUser = async (req: AuthRequest, res: Response) => {
+  try {
+    if (!req.user) {
+      return res.status(401).json({
+        success: false,
+        message: "Unauthorized",
+      });
+    }
+    if (req.user.role !== "admin") {
+      return res.status(403).json({
+        success: false,
+        message: "Bạn không có quyền admin",
+      });
+    }
+    const userId = req.params.id;
+    const action = req.body.action;
+    const user = await User.findByIdAndUpdate(userId, {
+      status: action === "block" ? "blocked" : "active",
+    }, { returnDocument: "after" });
+    res.status(200).json({
+      success: true,
+      message: "Cập nhật trạng thái người dùng thành công",
+      data: user,
+    });
+  } catch (error: any) {
+    res.status(500).json({
+      success: false,
+      message: "Lỗi cập nhật trạng thái người dùng",
+      error: error.message,
+    });
+  }
+};
+export const updateStatus = async (req: AuthRequest, res: Response) => {
+  try {
+    await User.findByIdAndUpdate(req.user!._id, {
+      lastActive: new Date(),
+    });
+    res.sendStatus(200);
+  } catch (error) {
+    res.sendStatus(500);
   }
 };

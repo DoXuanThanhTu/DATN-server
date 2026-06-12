@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { protect } from "../middleware/auth.middleware";
+import { checkAuth, protect } from "../middleware/auth.middleware";
 import {
   getMyFavorites,
   toggleFavorite,
@@ -7,6 +7,6 @@ import {
 
 const router = Router();
 
-router.get("/", protect, getMyFavorites);
-router.post("/:postId", protect, toggleFavorite);
+router.get("/", checkAuth, getMyFavorites);
+router.post("/:postId", checkAuth, toggleFavorite);
 export default router;
